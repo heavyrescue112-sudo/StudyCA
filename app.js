@@ -22,7 +22,13 @@ const API_INVOKE_URL = 'https://qvtngqs05b.execute-api.us-east-2.amazonaws.com/p
 // 2. ROBUST INITIALIZATION: WAIT FOR Amplify GLOBAL (with timeout)
 // ==========================================================
 function _detectAmplifyGlobal() {
-    return window.Amplify || window.aws_amplify || window['aws_amplify'] || window['AWSAmplify'] || null;
+    // try common globals and normalize to an object that has configure()
+    const g = window.Amplify || window.aws_amplify || window['aws_amplify'] || window['AWSAmplify'] || null;
+    if (!g) return null;
+    if (g.Amplify && typeof g.Amplify.configure === 'function') return g.Amplify;
+    if (g.default && typeof g.default.configure === 'function') return g.default;
+    if (typeof g.configure === 'function') return g;
+    return null;
 }
 
 function _waitForAmplify(timeoutMs = 5000, pollMs = 100) {
@@ -39,11 +45,18 @@ function _waitForAmplify(timeoutMs = 5000, pollMs = 100) {
 
 _waitForAmplify(5000, 100)
     .then((Amp) => {
-        // normalize to window.Amplify for the rest of the code
+        // cache normalized instance; make available as window.Amplify for existing code
+        window.__AMPLIFY_INSTANCE__ = Amp;
         window.Amplify = Amp;
-        Amplify.configure(awsConfig);
-        // call status check (function is declared below)
-        checkUserStatus();
+        try {
+            Amp.configure(awsConfig);
+        } catch (e) {
+            console.error('Amplify.configure failed:', e);
+            const out = document.getElementById('output');
+            if (out) out.innerText = 'Amplify configuration failed. See console.';
+            return;
+        }
+        if (typeof checkUserStatus === 'function') checkUserStatus();
     })
     .catch((err) => {
         console.error('Fatal Error: AWS Amplify library failed to load or is undefined.', err);
