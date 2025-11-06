@@ -3,13 +3,11 @@
 // ==========================================================
 const awsConfig = {
     Auth: {
-        region: 'us-east-2', 
-        userPoolId: 'us-east-2_oqwdFbFdN', 
-        userPoolWebClientId: '186msa18odo5mbg1rfr5sg0akv', 
+        region: 'us-east-2',
+        userPoolId: 'us-east-2_oqwdFbFdN',
+        userPoolWebClientId: '186msa18odo5mbg1rfr5sg0akv',
         oauth: {
-            // REPLACE with your actual Cognito Hosted UI domain (hostname only)
-            // e.g. 'my-app-auth.auth.us-east-2.amazoncognito.com'
-            domain: 'your-cognito-domain.auth.us-east-2.amazoncognito.com',
+            domain: 'us-east-2oqwdfbfdn.auth.us-east-2.amazoncognito.com',
             scope: ['openid', 'email', 'profile'],
             redirectSignIn: window.location.origin,
             redirectSignOut: window.location.origin,
