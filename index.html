@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Study Companion</title>
+    <script src="https://cdn.jsdelivr.net/npm/aws-amplify@6/core/amplify.min.js"></script>
+    <script src="app.js" defer></script>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ccc; }
+        input[type="text"], textarea, button { width: 100%; margin-bottom: 10px; padding: 10px; box-sizing: border-box; }
+        #output { border: 1px solid #eee; padding: 15px; background-color: #f9f9f9; white-space: pre-wrap; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>Personalized Study AI Companion</h1>
+    
+    <div id="auth-section">
+        <p>Please log in to use the explanation service.</p>
+        <button onclick="handleLoginRedirect()">Log In / Sign Up</button>
+    </div>
+
+    <div id="app-section" class="hidden">
+        <p id="user-info"></p>
+        
+        <h2>Explain a Concept:</h2>
+        <input type="text" id="concept-input" placeholder="e.g., The Chain Rule in Calculus" required>
+        <input type="text" id="style-input" placeholder="e.g., Explain it like a pirate, or using a cooking analogy" required>
+        
+        <button onclick="submitExplanation()">Generate Explanation</button>
+        
+        <p><strong>Result:</strong></p>
+        <div id="output">...</div>
+        
+        <p id="usage-display">Usage: Checking...</p>
+        <button onclick="handleLogout()">Log Out</button>
+    </div>
+
+</body>
+</html>
