@@ -7,11 +7,13 @@ const awsConfig = {
         userPoolId: 'us-east-2_oqwdFbFdN', 
         userPoolWebClientId: '186msa18odo5mbg1rfr5sg0akv', 
         oauth: {
-            domain: 'us-east-2oqwdfbfdn.auth.us-east-2.amazoncognito.com', // MUST be the correct hostname
+            // REPLACE with your actual Cognito Hosted UI domain (hostname only)
+            // e.g. 'my-app-auth.auth.us-east-2.amazoncognito.com'
+            domain: 'your-cognito-domain.auth.us-east-2.amazoncognito.com',
             scope: ['openid', 'email', 'profile'],
             redirectSignIn: window.location.origin,
             redirectSignOut: window.location.origin,
-            responseType: 'token' 
+            responseType: 'token'
         }
     }
 };
@@ -22,12 +24,17 @@ const API_INVOKE_URL = 'https://qvtngqs05b.execute-api.us-east-2.amazonaws.com/p
 // 2. ROBUST INITIALIZATION: WAIT FOR Amplify GLOBAL (with timeout)
 // ==========================================================
 function _detectAmplifyGlobal() {
-    // try common globals and normalize to an object that has configure()
-    const g = window.Amplify || window.aws_amplify || window['aws_amplify'] || window['AWSAmplify'] || null;
-    if (!g) return null;
-    if (g.Amplify && typeof g.Amplify.configure === 'function') return g.Amplify;
-    if (g.default && typeof g.default.configure === 'function') return g.default;
-    if (typeof g.configure === 'function') return g;
+    // Normalize common UMD shapes so returned object exposes .configure and .Auth
+    // Try explicit globals first
+    if (window.Amplify && typeof window.Amplify.configure === 'function' && window.Amplify.Auth) {
+        return window.Amplify;
+    }
+    const wa = window.aws_amplify || window['aws_amplify'] || window['AWSAmplify'] || null;
+    if (!wa) return null;
+    // aws_amplify may expose Amplify or default or configure directly
+    if (wa.Amplify && typeof wa.Amplify.configure === 'function' && wa.Amplify.Auth) return wa.Amplify;
+    if (wa.default && typeof wa.default.configure === 'function' && wa.default.Auth) return wa.default;
+    if (typeof wa.configure === 'function' && wa.Auth) return wa;
     return null;
 }
 
@@ -70,10 +77,12 @@ _waitForAmplify(5000, 100)
 
 // Redirects user to the Cognito Hosted UI
 function handleLoginRedirect() {
-    // This call is now guaranteed to run after Amplify.configure()
-    if (typeof Amplify !== 'undefined') {
-        Amplify.Auth.federatedSignIn();
-    } 
+    const Amp = window.__AMPLIFY_INSTANCE__ || _detectAmplifyGlobal();
+    if (Amp && Amp.Auth && typeof Amp.Auth.federatedSignIn === 'function') {
+        Amp.Auth.federatedSignIn();
+    } else {
+        console.error('Amplify.Auth.federatedSignIn is not available.');
+    }
 }
 
 // Signs the user out and clears the session
@@ -89,25 +98,34 @@ function handleLogout() {
 
 // Runs when the page loads to check authentication status
 async function checkUserStatus() {
+    const Amp = window.__AMPLIFY_INSTANCE__ || _detectAmplifyGlobal();
+    if (!Amp || !Amp.Auth) {
+        console.warn('checkUserStatus invoked but Amplify.Auth is not available.');
+        return;
+    }
+
     try {
-        const user = await Amplify.Auth.currentAuthenticatedUser();
-        const session = await Amplify.Auth.fetchAuthSession(); 
-        const idToken = session.tokens.idToken.toString();
+        const user = await Amp.Auth.currentAuthenticatedUser();
+        const session = await Amp.Auth.currentSession();
+        const idToken = session.getIdToken().getJwtToken();
 
         // UI Updates
-        document.getElementById('auth-section').classList.add('hidden');
-        document.getElementById('app-section').classList.remove('hidden');
+        const authSection = document.getElementById('auth-section');
+        const appSection = document.getElementById('app-section');
+        if (authSection) authSection.classList.add('hidden');
+        if (appSection) appSection.classList.remove('hidden');
 
         const displayName = (user.attributes && user.attributes.email) || user.username || 'User';
-        document.getElementById('user-info').innerText = `Welcome, ${displayName}!`;
+        const userInfoEl = document.getElementById('user-info');
+        if (userInfoEl) userInfoEl.innerText = `Welcome, ${displayName}!`;
 
-        // Set the global token variable
         window.ID_TOKEN = idToken;
 
     } catch (e) {
-        // User is not signed in or session is invalid
-        document.getElementById('auth-section').classList.remove('hidden');
-        document.getElementById('app-section').classList.add('hidden');
+        const authSection = document.getElementById('auth-section');
+        const appSection = document.getElementById('app-section');
+        if (authSection) authSection.classList.remove('hidden');
+        if (appSection) appSection.classList.add('hidden');
     }
 }
 
