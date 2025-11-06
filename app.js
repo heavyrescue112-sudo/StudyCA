@@ -19,18 +19,37 @@ const awsConfig = {
 const API_INVOKE_URL = 'https://qvtngqs05b.execute-api.us-east-2.amazonaws.com/prod/explain';
 
 // ==========================================================
-// 2. CRITICAL FIX: IMMEDIATE INITIALIZATION AND STATUS CHECK
+// 2. ROBUST INITIALIZATION: WAIT FOR Amplify GLOBAL (with timeout)
 // ==========================================================
-
-// Ensure Amplify is defined and configure it immediately upon script execution.
-if (typeof Amplify !== 'undefined') {
-    Amplify.configure(awsConfig); 
-    checkUserStatus(); // Start the status check immediately
-} else {
-    // Fallback for debugging if CDN link failed
-    console.error("Fatal Error: AWS Amplify library failed to load or is undefined.");
-    document.getElementById('output').innerText = 'System initialization failed. Check browser console.';
+function _detectAmplifyGlobal() {
+    return window.Amplify || window.aws_amplify || window['aws_amplify'] || window['AWSAmplify'] || null;
 }
+
+function _waitForAmplify(timeoutMs = 5000, pollMs = 100) {
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        (function poll() {
+            const Amp = _detectAmplifyGlobal();
+            if (Amp && Amp.Auth) return resolve(Amp);
+            if (Date.now() - start >= timeoutMs) return reject(new Error('Amplify global not found within timeout'));
+            setTimeout(poll, pollMs);
+        })();
+    });
+}
+
+_waitForAmplify(5000, 100)
+    .then((Amp) => {
+        // normalize to window.Amplify for the rest of the code
+        window.Amplify = Amp;
+        Amplify.configure(awsConfig);
+        // call status check (function is declared below)
+        checkUserStatus();
+    })
+    .catch((err) => {
+        console.error('Fatal Error: AWS Amplify library failed to load or is undefined.', err);
+        const out = document.getElementById('output');
+        if (out) out.innerText = 'System initialization failed. Check browser console and Network tab for the Amplify script.';
+    });
 
 // ==========================================================
 // 3. AUTHENTICATION HANDLERS
