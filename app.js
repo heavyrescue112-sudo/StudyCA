@@ -79,6 +79,23 @@ _waitForAmplify(5000, 100)
                 // hosted UI returns errors in payload.data (e.g. { error: 'unauthorized_client', error_description: '...' })
                 if (payload.event === 'cognitoHostedUI' && payload.data && payload.data.error) {
                     console.error('OAuth error from Hosted UI:', payload.data);
+
+                    // Specific handling for unauthorized_client to give actionable steps
+                    if (String(payload.data.error).toLowerCase() === 'unauthorized_client') {
+                        alert(
+                            'OAuth error: unauthorized_client\n\n' +
+                            'Likely causes and fixes:\n' +
+                            '1) In Cognito Console → App client settings, enable the OAuth flow that matches awsConfig.Auth.oauth.responseType:\n' +
+                            (awsConfig.Auth.oauth.responseType === 'token' ? '   - Enable "Implicit grant"\n' : '   - Enable "Authorization code grant"\n') +
+                            '2) Ensure the Callback URL(s) (Redirect URIs) include this origin: ' + window.location.origin + '\n' +
+                            '3) Ensure the App client does NOT require a client secret for browser-based (implicit) flows. If it has a secret, use server-side code exchange or create a client without secret.\n' +
+                            '4) Confirm Allowed OAuth Scopes include openid (and email/profile if needed).\n\n' +
+                            'Open the Cognito App client settings and fix the configuration, then retry.'
+                        );
+                        return;
+                    }
+
+                    // Generic message for other hosted UI errors
                     alert('OAuth error from Cognito Hosted UI: ' + (payload.data.error_description || payload.data.error) +
                           '\n\nCommon causes: app client not enabled for the selected OAuth flow, redirect URI mismatch, or client secret required for this client. Check the Cognito App client and Hosted UI settings.');
                 }
@@ -231,6 +248,13 @@ function _validateAwsConfig() {
     }
     if (!responseType || (responseType !== 'token' && responseType !== 'code')) {
         issues.push('oauth.responseType should be "token" (implicit) or "code" (authorization code).');
+    } else {
+        // Add guidance tied to chosen responseType
+        if (responseType === 'token') {
+            issues.push('Using responseType "token" (implicit). Ensure the App client is enabled for "Implicit grant" and does NOT have a client secret (browser JS cannot use clients with secret).');
+        } else if (responseType === 'code') {
+            issues.push('Using responseType "code" (authorization code). Ensure the App client is enabled for "Authorization code grant" and the Callback URL is configured; server-side code is required to exchange the code for tokens if the client uses a secret.');
+        }
     }
     return issues;
 }
