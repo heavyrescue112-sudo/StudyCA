@@ -61,6 +61,36 @@ _waitForAmplify(5000, 100)
             if (out) out.innerText = 'Amplify configuration failed. See console.';
             return;
         }
+
+        // run quick config validation and surface problems before redirecting to Hosted UI
+        const cfgIssues = _validateAwsConfig();
+        if (cfgIssues.length) {
+            const msg = 'Cognito config issues:\n' + cfgIssues.map((s,i) => `${i+1}. ${s}`).join('\n');
+            console.error(msg);
+            alert(msg + '\n\nFix the awsConfig values in app.js and ensure the Cognito app client/Hosted UI are configured.');
+            // do not auto-check user status or trigger sign-in flow if misconfigured
+            return;
+        }
+
+        // listen for Amplify Auth/Hub events so we can show clearer guidance for oauth errors
+        if (Amp.Hub && typeof Amp.Hub.listen === 'function') {
+            Amp.Hub.listen('auth', (data) => {
+                const payload = data && data.payload ? data.payload : {};
+                // hosted UI returns errors in payload.data (e.g. { error: 'unauthorized_client', error_description: '...' })
+                if (payload.event === 'cognitoHostedUI' && payload.data && payload.data.error) {
+                    console.error('OAuth error from Hosted UI:', payload.data);
+                    alert('OAuth error from Cognito Hosted UI: ' + (payload.data.error_description || payload.data.error) +
+                          '\n\nCommon causes: app client not enabled for the selected OAuth flow, redirect URI mismatch, or client secret required for this client. Check the Cognito App client and Hosted UI settings.');
+                }
+                // generic failure events
+                if (String(payload.event || '').toLowerCase().includes('failure')) {
+                    console.error('Auth failure event:', payload);
+                    // show less verbose message to user
+                    alert('Authentication failed. See console for details.');
+                }
+            });
+        }
+
         if (typeof checkUserStatus === 'function') checkUserStatus();
     })
     .catch((err) => {
@@ -76,10 +106,21 @@ _waitForAmplify(5000, 100)
 // Redirects user to the Cognito Hosted UI
 function handleLoginRedirect() {
     const Amp = window.__AMPLIFY_INSTANCE__ || _detectAmplifyGlobal();
+
+    // run quick validation and abort with a clear message if config looks wrong
+    const cfgIssues = _validateAwsConfig();
+    if (cfgIssues.length) {
+        const msg = 'Cannot start Hosted UI redirect. Fix configuration first:\n' + cfgIssues.map((s,i) => `${i+1}. ${s}`).join('\n');
+        console.error(msg);
+        alert(msg);
+        return;
+    }
+
     if (Amp && Amp.Auth && typeof Amp.Auth.federatedSignIn === 'function') {
         Amp.Auth.federatedSignIn();
     } else {
         console.error('Amplify.Auth.federatedSignIn is not available.');
+        alert('Authentication not available. See console for details.');
     }
 }
 
@@ -170,4 +211,26 @@ async function submitExplanation() {
         outputDiv.innerText = 'Network connection failed. Check your console.';
         console.error('API call failed:', error);
     }
+}
+
+// quick validation for common Cognito Hosted UI misconfigurations
+function _validateAwsConfig() {
+    const issues = [];
+    const cfg = awsConfig && awsConfig.Auth && awsConfig.Auth.oauth;
+    const domain = cfg && cfg.domain ? String(cfg.domain).trim() : '';
+    const clientId = awsConfig && awsConfig.Auth && awsConfig.Auth.userPoolWebClientId;
+    const redirect = cfg && cfg.redirectSignIn;
+    const responseType = cfg && cfg.responseType;
+
+    if (!clientId) issues.push('Missing awsConfig.Auth.userPoolWebClientId (App client ID).');
+    if (!domain || domain.includes('REPLACE_WITH') || domain.startsWith('your-') || domain.indexOf('amazoncognito.com') === -1) {
+        issues.push('Hosted UI domain looks incorrect. Set awsConfig.Auth.oauth.domain to your Cognito hosted UI hostname (no https://).');
+    }
+    if (!redirect || redirect !== window.location.origin) {
+        issues.push(`Redirect URI mismatch. awsConfig.Auth.oauth.redirectSignIn should match the app origin: ${window.location.origin}`);
+    }
+    if (!responseType || (responseType !== 'token' && responseType !== 'code')) {
+        issues.push('oauth.responseType should be "token" (implicit) or "code" (authorization code).');
+    }
+    return issues;
 }
