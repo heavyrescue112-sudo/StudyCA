@@ -1,19 +1,17 @@
 // ==========================================================
-// 1. AWS CONFIGURATION: REPLACE THESE PLACEHOLDERS
+// 1. AWS CONFIGURATION: (YOUR CORRECT IDS USED HERE)
 // ==========================================================
 const awsConfig = {
     Auth: {
-        region: 'us-east-2', // Your AWS Region (Ohio)
-        userPoolId: 'us-east-2_oqwdFbFdN', // Your StudyCAPool ID
-        userPoolWebClientId: '186msa18odo5mbg1rfr5sg0akv', // Your App Client ID
+        region: 'us-east-2', 
+        userPoolId: 'us-east-2_oqwdFbFdN', 
+        userPoolWebClientId: '186msa18odo5mbg1rfr5sg0akv', 
         oauth: {
-            // Your Cognito Hosted UI Domain (e.g., [prefix].auth.[region].amazoncognito.com)
             domain: 'us-east-2oqwdfbfdn.auth.us-east-2.amazoncognito.com',
             scope: ['openid', 'email', 'profile'],
-            // Ensures the user is redirected back to the current Amplify URL
             redirectSignIn: window.location.origin,
             redirectSignOut: window.location.origin,
-            responseType: 'token' // Implicit flow for Single Page Apps (SPA)
+            responseType: 'token' 
         }
     }
 };
@@ -21,16 +19,29 @@ const awsConfig = {
 const API_INVOKE_URL = 'https://qvtngqs05b.execute-api.us-east-2.amazonaws.com/prod/explain';
 
 // ==========================================================
-// 2. AUTHENTICATION & INITIALIZATION HANDLERS
+// 2. CRITICAL FIX: IMMEDIATE INITIALIZATION
+// ==========================================================
+// Check if Amplify is loaded from the CDN, then configure it immediately.
+if (typeof Amplify !== 'undefined') {
+    Amplify.configure(awsConfig); 
+    checkUserStatus(); // Start the status check immediately
+} else {
+    // This fallback runs if the CDN link in index.html is still broken
+    console.error("Fatal Error: AWS Amplify library failed to load.");
+}
+
+// ==========================================================
+// 3. AUTHENTICATION HANDLERS (These functions are now guaranteed access to Amplify.Auth)
 // ==========================================================
 
-// Function to handle the actual login button click
+// Redirects user to the Cognito Hosted UI
 function handleLoginRedirect() {
-    // This call redirects the user to the Cognito Hosted UI
+    // This function is tied directly to the button 'onclick' event
     if (typeof Amplify !== 'undefined') {
         Amplify.Auth.federatedSignIn();
     } else {
-        console.error('Amplify not initialized. Check CDN link.');
+        console.error('Amplify not initialized. Cannot redirect.');
+        alert('Authentication service failed to load. Please try refreshing the page.');
     }
 }
 
@@ -39,7 +50,8 @@ function handleLogout() {
     if (typeof Amplify !== 'undefined') {
         Amplify.Auth.signOut()
             .then(() => {
-                // UI reset handled by checkUserStatus on redirect/reload
+                 // After sign-out, reload the window to clear tokens and re-run checkUserStatus
+                 window.location.reload(); 
             })
             .catch(err => console.error('Sign out error', err));
     }
@@ -48,43 +60,29 @@ function handleLogout() {
 // Runs when the page loads to check authentication status
 async function checkUserStatus() {
     try {
-        // Use Amplify Auth methods that return current user/session
         const user = await Amplify.Auth.currentAuthenticatedUser();
         const session = await Amplify.Auth.fetchAuthSession(); 
         const idToken = session.tokens.idToken.toString();
 
-        // Show application section
+        // UI Updates
         document.getElementById('auth-section').classList.add('hidden');
         document.getElementById('app-section').classList.remove('hidden');
 
         const displayName = (user.attributes && user.attributes.email) || user.username || 'User';
         document.getElementById('user-info').innerText = `Welcome, ${displayName}!`;
 
-        // Set the global token variable for API calls
+        // Set the global token variable
         window.ID_TOKEN = idToken;
 
     } catch (e) {
-        // User is not signed in
+        // User is not signed in or session is invalid
         document.getElementById('auth-section').classList.remove('hidden');
         document.getElementById('app-section').classList.add('hidden');
     }
 }
 
-// --- CRITICAL INITIALIZATION FIX ---
-// Configure Amplify and check status only after the window has loaded
-window.onload = function() {
-    if (typeof Amplify !== 'undefined') {
-        Amplify.configure(awsConfig); // Configure now that Amplify object is defined
-        checkUserStatus();            // Check if the user is already logged in
-    } else {
-        console.error("Fatal Error: AWS Amplify library failed to load.");
-        // Display a simple error to the user if the script failed to run
-        document.getElementById('output').innerText = 'System initialization failed. Check your internet connection.';
-    }
-};
-
 // ==========================================================
-// 3. API CALL LOGIC (Remains the same as before)
+// 4. API CALL LOGIC 
 // ==========================================================
 
 async function submitExplanation() {
@@ -104,7 +102,7 @@ async function submitExplanation() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // CRITICAL SECURITY HEADER: Using 'Bearer' for the token
+                // CRITICAL SECURITY HEADER: Token proved by Cognito
                 'Authorization': `Bearer ${window.ID_TOKEN}` 
             },
             body: JSON.stringify({ concept: concept, style: style })
