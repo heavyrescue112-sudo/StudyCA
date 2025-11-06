@@ -7,7 +7,7 @@ const awsConfig = {
         userPoolId: 'us-east-2_oqwdFbFdN', 
         userPoolWebClientId: '186msa18odo5mbg1rfr5sg0akv', 
         oauth: {
-            domain: 'us-east-2oqwdfbfdn.auth.us-east-2.amazoncognito.com',
+            domain: 'https://us-east-2oqwdfbfdn.auth.us-east-2.amazoncognito.com',
             scope: ['openid', 'email', 'profile'],
             redirectSignIn: window.location.origin,
             redirectSignOut: window.location.origin,
@@ -125,4 +125,5 @@ async function submitExplanation() {
         outputDiv.innerText = 'Network connection failed. Check your console.';
         console.error('API call failed:', error);
     }
+
 }
