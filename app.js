@@ -1,5 +1,5 @@
 // ==========================================================
-// 1. AWS CONFIGURATION: (YOUR CORRECT IDS USED HERE)
+// 1. AWS CONFIGURATION (Your Verified IDS)
 // ==========================================================
 const awsConfig = {
     Auth: {
@@ -7,7 +7,7 @@ const awsConfig = {
         userPoolId: 'us-east-2_oqwdFbFdN', 
         userPoolWebClientId: '186msa18odo5mbg1rfr5sg0akv', 
         oauth: {
-            domain: 'https://us-east-2oqwdfbfdn.auth.us-east-2.amazoncognito.com',
+            domain: 'us-east-2oqwdfbfdn.auth.us-east-2.amazoncognito.com', // MUST be the correct hostname
             scope: ['openid', 'email', 'profile'],
             redirectSignIn: window.location.origin,
             redirectSignOut: window.location.origin,
@@ -19,30 +19,29 @@ const awsConfig = {
 const API_INVOKE_URL = 'https://qvtngqs05b.execute-api.us-east-2.amazonaws.com/prod/explain';
 
 // ==========================================================
-// 2. CRITICAL FIX: IMMEDIATE INITIALIZATION
+// 2. CRITICAL FIX: IMMEDIATE INITIALIZATION AND STATUS CHECK
 // ==========================================================
-// Check if Amplify is loaded from the CDN, then configure it immediately.
+
+// Ensure Amplify is defined and configure it immediately upon script execution.
 if (typeof Amplify !== 'undefined') {
     Amplify.configure(awsConfig); 
     checkUserStatus(); // Start the status check immediately
 } else {
-    // This fallback runs if the CDN link in index.html is still broken
-    console.error("Fatal Error: AWS Amplify library failed to load.");
+    // Fallback for debugging if CDN link failed
+    console.error("Fatal Error: AWS Amplify library failed to load or is undefined.");
+    document.getElementById('output').innerText = 'System initialization failed. Check browser console.';
 }
 
 // ==========================================================
-// 3. AUTHENTICATION HANDLERS (These functions are now guaranteed access to Amplify.Auth)
+// 3. AUTHENTICATION HANDLERS
 // ==========================================================
 
 // Redirects user to the Cognito Hosted UI
 function handleLoginRedirect() {
-    // This function is tied directly to the button 'onclick' event
+    // This call is now guaranteed to run after Amplify.configure()
     if (typeof Amplify !== 'undefined') {
         Amplify.Auth.federatedSignIn();
-    } else {
-        console.error('Amplify not initialized. Cannot redirect.');
-        alert('Authentication service failed to load. Please try refreshing the page.');
-    }
+    } 
 }
 
 // Signs the user out and clears the session
@@ -50,7 +49,6 @@ function handleLogout() {
     if (typeof Amplify !== 'undefined') {
         Amplify.Auth.signOut()
             .then(() => {
-                 // After sign-out, reload the window to clear tokens and re-run checkUserStatus
                  window.location.reload(); 
             })
             .catch(err => console.error('Sign out error', err));
@@ -102,7 +100,6 @@ async function submitExplanation() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // CRITICAL SECURITY HEADER: Token proved by Cognito
                 'Authorization': `Bearer ${window.ID_TOKEN}` 
             },
             body: JSON.stringify({ concept: concept, style: style })
@@ -125,5 +122,4 @@ async function submitExplanation() {
         outputDiv.innerText = 'Network connection failed. Check your console.';
         console.error('API call failed:', error);
     }
-
 }
