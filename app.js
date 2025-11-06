@@ -62,14 +62,12 @@ _waitForAmplify(5000, 100)
             return;
         }
 
-        // run quick config validation and surface problems before redirecting to Hosted UI
+        // NOTE: removed blocking alert on page load. Validation still runs but only logs warnings.
+        // This prevents the "Cannot start Hosted UI redirect..." popup appearing immediately.
         const cfgIssues = _validateAwsConfig();
         if (cfgIssues.length) {
-            const msg = 'Cognito config issues:\n' + cfgIssues.map((s,i) => `${i+1}. ${s}`).join('\n');
-            console.error(msg);
-            alert(msg + '\n\nFix the awsConfig values in app.js and ensure the Cognito app client/Hosted UI are configured.');
-            // do not auto-check user status or trigger sign-in flow if misconfigured
-            return;
+            console.warn('Cognito config issues (will not block page load):\n' + cfgIssues.map((s,i) => `${i+1}. ${s}`).join('\n'));
+            // Do not return here — allow page to load. Validation will run again when user clicks Log In.
         }
 
         // listen for Amplify Auth/Hub events so we can show clearer guidance for oauth errors
